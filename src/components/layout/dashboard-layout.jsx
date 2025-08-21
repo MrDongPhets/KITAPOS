@@ -1,9 +1,9 @@
-// components/layout/dashboard-layout.jsx
+// src/components/layout/dashboard-layout.jsx
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -13,6 +13,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -24,7 +25,11 @@ import {
   Menu,
   ChevronDown,
   Home,
+  User,
+  LogOut,
+  Loader2,
 } from "lucide-react"
+import authService from "@/services/authService"
 
 const sidebarItems = [
   {
@@ -54,9 +59,84 @@ const sidebarItems = [
   },
 ]
 
+// Simple Logout Button Component (inline)
+function LogoutMenuItem() {
+  const router = useRouter()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await authService.logout()
+      router.push("/login")
+    } catch (error) {
+      console.error("Logout error:", error)
+      router.push("/login")
+    }
+  }
+
+  return (
+    <DropdownMenuItem onClick={handleLogout} disabled={isLoggingOut}>
+      {isLoggingOut ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Signing out...
+        </>
+      ) : (
+        <>
+          <LogOut className="mr-2 h-4 w-4" />
+          Sign out
+        </>
+      )}
+    </DropdownMenuItem>
+  )
+}
+
 export function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [user, setUser] = useState(null)
   const pathname = usePathname()
+  const router = useRouter()
+
+  // Load user data on mount
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser()
+    if (currentUser) {
+      setUser(currentUser)
+    } else if (typeof window !== 'undefined') {
+      // Check localStorage for user data
+      const savedUser = localStorage.getItem('userData')
+      if (savedUser) {
+        try {
+          setUser(JSON.parse(savedUser))
+        } catch (e) {
+          console.error('Error parsing user data:', e)
+        }
+      }
+    }
+  }, [])
+
+  // Get user initials for avatar
+  const getUserInitials = () => {
+    if (!user?.name) return "SA"
+    const names = user.name.split(' ')
+    if (names.length >= 2) {
+      return names[0][0] + names[names.length - 1][0]
+    }
+    return user.name.substring(0, 2).toUpperCase()
+  }
+
+  // Get role display name
+  const getRoleDisplayName = () => {
+    if (!user?.role) return "Admin"
+    const roleMap = {
+      'super_admin': 'Super Admin',
+      'manager': 'Manager',
+      'cashier': 'Cashier',
+      'staff': 'Staff'
+    }
+    return roleMap[user.role] || user.role
+  }
 
   const Sidebar = () => (
     <div className="flex h-full flex-col bg-white border-r">
@@ -90,6 +170,7 @@ export function DashboardLayout({ children }) {
                     ? "bg-gray-100 text-gray-900"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 )}
+                onClick={() => setSidebarOpen(false)}
               >
                 <Icon className="h-4 w-4" />
                 {item.title}
@@ -108,18 +189,37 @@ export function DashboardLayout({ children }) {
               className="w-full justify-start gap-2 p-2 h-auto"
             >
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="text-xs">SA</AvatarFallback>
+                <AvatarFallback className="text-xs">
+                  {getUserInitials()}
+                </AvatarFallback>
               </Avatar>
               <div className="flex-1 text-left">
-                <p className="text-sm font-medium">Super Admin</p>
+                <p className="text-sm font-medium">{user?.name || 'Super Admin'}</p>
+                <p className="text-xs text-gray-500">{getRoleDisplayName()}</p>
               </div>
               <ChevronDown className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuItem>Settings</DropdownMenuItem>
-            <DropdownMenuItem>Sign out</DropdownMenuItem>
+            <div className="px-2 py-1.5">
+              <p className="text-sm font-medium">{user?.name || 'Super Admin'}</p>
+              <p className="text-xs text-gray-500">{user?.email || 'admin@techcorp.com'}</p>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/profile" className="cursor-pointer">
+                <User className="mr-2 h-4 w-4" />
+                Profile
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/settings" className="cursor-pointer">
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <LogoutMenuItem />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -145,18 +245,14 @@ export function DashboardLayout({ children }) {
         {/* Top Navigation */}
         <header className="h-16 bg-white border-b flex items-center justify-between px-6">
           <div className="flex items-center gap-4">
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="md:hidden"
-                  onClick={() => setSidebarOpen(true)}
-                >
-                  <Menu className="h-4 w-4" />
-                </Button>
-              </SheetTrigger>
-            </Sheet>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="md:hidden"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-4 w-4" />
+            </Button>
             
             {/* Breadcrumb */}
             <nav className="flex items-center space-x-1 text-sm text-gray-500">
@@ -172,6 +268,41 @@ export function DashboardLayout({ children }) {
                 </>
               )}
             </nav>
+          </div>
+
+          {/* Desktop User Menu */}
+          <div className="hidden md:flex items-center gap-4">
+            <span className="text-sm text-gray-600">
+              Welcome, {user?.name || 'Admin'}
+            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <Avatar className="h-7 w-7">
+                    <AvatarFallback className="text-xs">
+                      {getUserInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/profile" className="cursor-pointer">
+                    <User className="mr-2 h-4 w-4" />
+                    Profile
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/settings" className="cursor-pointer">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <LogoutMenuItem />
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
