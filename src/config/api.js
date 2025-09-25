@@ -1,12 +1,27 @@
-// src/config/api.js - API Configuration with your setup
+// src/config/api.js - Fixed with proper fallback
 const getApiUrl = () => {
-  // For client-side (browser)
-  if (typeof window !== 'undefined') {
-    return process.env.NEXT_PUBLIC_API_URL
+  // Get the environment variable
+  const envApiUrl = process.env.NEXT_PUBLIC_API_URL
+  
+  // If environment variable exists, use it
+  if (envApiUrl) {
+    console.log('🔗 Using API URL from environment:', envApiUrl)
+    return envApiUrl
   }
   
-  // For server-side
-  return process.env.NEXT_PUBLIC_API_URL
+  // Fallback logic based on environment
+  const isDevelopment = process.env.NODE_ENV === 'development'
+  const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+  
+  // If in development or on localhost, use local API
+  if (isDevelopment || isLocalhost) {
+    console.log('🔗 Fallback to localhost for development')
+    return 'http://localhost:3001'
+  }
+  
+  // Production fallback
+  console.log('🔗 Using production fallback URL')
+  return 'https://kitapos-backend.vercel.app'
 }
 
 export const API_CONFIG = {
@@ -28,12 +43,21 @@ export const API_CONFIG = {
   }
 }
 
-// Log configuration (only in development)
-if (process.env.NODE_ENV === 'development') {
-  console.log('🔗 API Configuration:', {
-    BASE_URL: API_CONFIG.BASE_URL,
-    ENVIRONMENT: process.env.NODE_ENV || 'development'
-  })
+// Enhanced logging for debugging
+console.log('🔗 API Configuration Debug:', {
+  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'NOT SET',
+  NODE_ENV: process.env.NODE_ENV || 'NOT SET',
+  COMPUTED_BASE_URL: API_CONFIG.BASE_URL,
+  IS_BROWSER: typeof window !== 'undefined',
+  HOSTNAME: typeof window !== 'undefined' ? window.location.hostname : 'server'
+})
+
+// Validate configuration
+if (!API_CONFIG.BASE_URL) {
+  console.error('❌ API_CONFIG.BASE_URL is undefined! Check your environment variables.')
+} else {
+  console.log('✅ API Configuration loaded successfully')
+  console.log('📡 API Base URL:', API_CONFIG.BASE_URL)
 }
 
 export default API_CONFIG
