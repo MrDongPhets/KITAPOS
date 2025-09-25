@@ -1,4 +1,4 @@
-// src/app/register/page.jsx - Client Registration Only
+// src/app/register/page.jsx - Fixed hardcoded localhost
 "use client"
 
 import { useState, useEffect } from "react"
@@ -11,8 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, UserPlus, Building2, ArrowLeft, Check, X, Star, Zap, Crown, ChevronRight } from "lucide-react"
-
-const API_BASE_URL = 'http://localhost:3001'
+import API_CONFIG from "@/config/api" // Import API config
 
 const subscriptionPlans = [
   {
@@ -176,7 +175,8 @@ export default function RegisterPage() {
     setLoading(true)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register-company`, {
+      // FIXED: Use correct API URL
+      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/register-company`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -241,6 +241,7 @@ export default function RegisterPage() {
               Redirecting to login page...
             </div>
             <Loader2 className="h-6 w-6 animate-spin mx-auto mt-4 text-gray-400" />
+            <p className="text-xs text-gray-400 mt-2">API: {API_CONFIG.BASE_URL}</p>
           </CardContent>
         </Card>
       </div>
@@ -567,7 +568,7 @@ export default function RegisterPage() {
           By registering, you agree to our Terms of Service and Privacy Policy
         </p>
         <p className="text-xs text-gray-400 mt-2">
-          POS System v2.0.0 | © 2025 TechCorp
+          POS System v2.0.0 | © 2025 TechCorp | API: {API_CONFIG.BASE_URL}
         </p>
       </div>
     </div>

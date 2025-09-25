@@ -1,4 +1,4 @@
-// src/app/system-admin/page.jsx - Hidden Super Admin Login
+// src/app/system-admin/page.jsx - Fixed hardcoded localhost
 "use client"
 
 import { useState, useEffect } from "react"
@@ -9,8 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Shield, Crown, Lock, Wifi, WifiOff } from "lucide-react"
-
-const API_BASE_URL = 'http://localhost:3001'
+import API_CONFIG from "@/config/api" // Import API config
 
 export default function SystemAdminLogin() {
   const router = useRouter()
@@ -34,11 +33,11 @@ export default function SystemAdminLogin() {
     }
   }, [router])
 
-  // Monitor connection
+  // FIXED: Monitor connection using correct API URL
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/health`)
+        const response = await fetch(`${API_CONFIG.BASE_URL}/health`)
         setIsOnline(response.ok)
       } catch {
         setIsOnline(false)
@@ -60,7 +59,8 @@ export default function SystemAdminLogin() {
         return
       }
 
-      const response = await fetch(`${API_BASE_URL}/auth/super-admin/login`, {
+      // FIXED: Use correct API URL
+      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/super-admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials)
@@ -252,7 +252,7 @@ export default function SystemAdminLogin() {
           System Administration Portal | Secured Access
         </p>
         <p className="text-xs text-gray-500 mt-1">
-          {isOnline ? 'System operational' : 'System maintenance'}
+          API: {API_CONFIG.BASE_URL} | {isOnline ? 'System operational' : 'System maintenance'}
         </p>
       </div>
     </div>
