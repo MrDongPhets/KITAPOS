@@ -1,4 +1,4 @@
-// src/app/login/page.jsx - Add session protection
+// src/app/login/page.jsx - Add debug component
 "use client"
 
 import { useState, useEffect } from "react"
@@ -9,6 +9,25 @@ import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, LogIn, Building2, Wifi, WifiOff, AlertTriangle, User, LogOut } from "lucide-react"
 import { AuthProvider, useAuth } from "@/components/auth/AuthProvider"
+
+// Debug component - ADD THIS
+function EnvDebug() {
+  useEffect(() => {
+    console.log('Environment Debug:', {
+      NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+      NODE_ENV: process.env.NODE_ENV,
+      location: typeof window !== 'undefined' ? window.location.href : 'server'
+    })
+  }, [])
+
+  return (
+    <div className="fixed top-0 left-0 bg-red-500 text-white p-2 text-xs z-50 max-w-sm">
+      <div>API: {process.env.NEXT_PUBLIC_API_URL || 'NOT SET'}</div>
+      <div>ENV: {process.env.NODE_ENV || 'NOT SET'}</div>
+      <div>URL: {typeof window !== 'undefined' ? window.location.hostname : 'server'}</div>
+    </div>
+  )
+}
 
 function LoginForm() {
   const { login, loading: authLoading, isAuthenticated, user, userType, logout } = useAuth()
@@ -88,6 +107,7 @@ function LoginForm() {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <EnvDebug />
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
@@ -103,6 +123,7 @@ function LoginForm() {
   if (isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <EnvDebug />
         {/* Connection Status */}
         <div className="fixed top-4 right-4 z-50">
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
@@ -202,6 +223,7 @@ function LoginForm() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+      <EnvDebug />
       {/* Connection Status */}
       <div className="fixed top-4 right-4 z-50">
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
