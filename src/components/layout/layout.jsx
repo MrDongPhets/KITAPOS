@@ -1,3 +1,4 @@
+// src/app/layout.jsx - Root layout with AuthProvider
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/components/auth/AuthProvider'
@@ -5,8 +6,8 @@ import { AuthProvider } from '@/components/auth/AuthProvider'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'POS System',
-  description: 'Business management platform',
+  title: 'POS System - Business Management Platform',
+  description: 'Complete point of sale system for modern businesses',
 }
 
 export default function RootLayout({ children }) {

@@ -1,226 +1,336 @@
-// src/services/authService.js
-import axios from 'axios';
+// src/services/authService.js - Updated to use API_CONFIG
+import API_CONFIG from '@/config/api'
 
 class AuthService {
   constructor() {
-    this.baseURL = 'https://byd-pos-middleware.vercel.app';
-    this.token = null;
-    this.user = null;
-    this.isOfflineMode = false;
-    this.lastSyncTime = null;
+    this.baseURL = API_CONFIG.BASE_URL
+    this.token = null
+    this.user = null
+    this.userType = null
+    this.company = null
+    this.subscription = null
     
-    // Initialize from localStorage if available
+    // Token expiration handling
+    this.tokenCheckInterval = null
+    this.onTokenExpired = null
+    
     if (typeof window !== 'undefined') {
-      this.loadFromStorage();
+      console.log('🔧 AuthService initialized with API:', this.baseURL)
+      this.loadFromStorage()
+      this.startTokenValidation()
     }
+  }
+
+  // Set callback for token expiration
+  setTokenExpirationCallback(callback) {
+    this.onTokenExpired = callback
   }
 
   // Load saved auth data from localStorage
   loadFromStorage() {
     try {
-      const savedToken = localStorage.getItem('authToken');
-      const savedUser = localStorage.getItem('userData');
-      const savedSyncTime = localStorage.getItem('lastSyncTime');
+      const savedToken = localStorage.getItem('authToken')
+      const savedUser = localStorage.getItem('userData')
+      const savedUserType = localStorage.getItem('userType')
+      const savedCompany = localStorage.getItem('companyData')
+      const savedSubscription = localStorage.getItem('subscriptionData')
       
-      if (savedToken) {
-        this.token = savedToken;
-        this.setAuthHeader(savedToken);
-      }
-      
-      if (savedUser) {
-        this.user = JSON.parse(savedUser);
-      }
-      
-      if (savedSyncTime) {
-        this.lastSyncTime = new Date(savedSyncTime);
-      }
+      if (savedToken) this.token = savedToken
+      if (savedUser) this.user = JSON.parse(savedUser)
+      if (savedUserType) this.userType = savedUserType
+      if (savedCompany) this.company = JSON.parse(savedCompany)
+      if (savedSubscription) this.subscription = JSON.parse(savedSubscription)
     } catch (error) {
-      console.error('Error loading auth data from storage:', error);
+      console.error('Error loading auth data from storage:', error)
+      this.clearSession()
     }
   }
 
-  // Save auth data to localStorage and cookies
+  // Save auth data to localStorage
   saveToStorage() {
     try {
       if (this.token) {
-        localStorage.setItem('authToken', this.token);
-        // Also set as httpOnly cookie for middleware
-        document.cookie = `authToken=${this.token}; path=/; max-age=604800; SameSite=Strict`;
+        localStorage.setItem('authToken', this.token)
       } else {
-        localStorage.removeItem('authToken');
-        // Clear cookie
-        document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
+        localStorage.removeItem('authToken')
       }
       
       if (this.user) {
-        localStorage.setItem('userData', JSON.stringify(this.user));
+        localStorage.setItem('userData', JSON.stringify(this.user))
       } else {
-        localStorage.removeItem('userData');
+        localStorage.removeItem('userData')
       }
-      
-      if (this.lastSyncTime) {
-        localStorage.setItem('lastSyncTime', this.lastSyncTime.toISOString());
+
+      if (this.userType) {
+        localStorage.setItem('userType', this.userType)
+      } else {
+        localStorage.removeItem('userType')
+      }
+
+      if (this.company) {
+        localStorage.setItem('companyData', JSON.stringify(this.company))
+      } else {
+        localStorage.removeItem('companyData')
+      }
+
+      if (this.subscription) {
+        localStorage.setItem('subscriptionData', JSON.stringify(this.subscription))
+      } else {
+        localStorage.removeItem('subscriptionData')
       }
     } catch (error) {
-      console.error('Error saving auth data to storage:', error);
+      console.error('Error saving auth data to storage:', error)
     }
   }
 
-  // Set axios default auth header
-  setAuthHeader(token) {
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    } else {
-      delete axios.defaults.headers.common['Authorization'];
+  // Start token validation interval
+  startTokenValidation() {
+    if (this.tokenCheckInterval) {
+      clearInterval(this.tokenCheckInterval)
     }
-  }
 
-  // Login method
-  async login(email, password) {
-    try {
-      console.log('🔐 Attempting login for:', email);
-      
-      // Check if we're online
-      const isOnline = await this.checkConnection();
-      
-      if (!isOnline) {
-        // Offline mode - check cached credentials
-        return this.offlineLogin(email, password);
+    // Check token every 5 minutes
+    this.tokenCheckInterval = setInterval(() => {
+      if (this.token) {
+        this.validateToken()
       }
-      
-      // Online login
-      const response = await axios.post(`${this.baseURL}/auth/login`, {
-        email,
-        password
-      }, {
-        timeout: 10000, // 10 second timeout
+    }, 5 * 60 * 1000)
+  }
+
+  // Stop token validation
+  stopTokenValidation() {
+    if (this.tokenCheckInterval) {
+      clearInterval(this.tokenCheckInterval)
+      this.tokenCheckInterval = null
+    }
+  }
+
+  // Validate current token
+  async validateToken() {
+    if (!this.token) return false
+
+    try {
+      const response = await fetch(`${this.baseURL}${API_CONFIG.ENDPOINTS.AUTH.VERIFY}`, {
+        method: 'GET',
         headers: {
+          'Authorization': `Bearer ${this.token}`,
           'Content-Type': 'application/json'
         }
-      });
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.valid) {
+        return true
+      } else {
+        console.log('Token validation failed:', data.error)
+        this.handleTokenExpiration()
+        return false
+      }
+    } catch (error) {
+      console.error('Token validation error:', error)
+      return false
+    }
+  }
+
+  // Handle token expiration
+  handleTokenExpiration() {
+    console.log('🚨 Token expired, clearing session and redirecting to login')
+    
+    this.clearSession()
+    
+    // Call the expiration callback if set
+    if (this.onTokenExpired) {
+      this.onTokenExpired()
+    } else {
+      // Default behavior - redirect to login
+      window.location.href = '/login'
+    }
+  }
+
+  // Clear session data
+  clearSession() {
+    this.token = null
+    this.user = null
+    this.userType = null
+    this.company = null
+    this.subscription = null
+    
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('userData')
+    localStorage.removeItem('userType')
+    localStorage.removeItem('companyData')
+    localStorage.removeItem('subscriptionData')
+    
+    this.stopTokenValidation()
+  }
+
+  // Enhanced API request method with automatic token handling
+  async apiRequest(endpoint, options = {}) {
+    const url = `${this.baseURL}${endpoint}`
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers
+    }
+
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`
+    }
+
+    try {
+      console.log('🌐 API Request:', url)
       
-      if (response.data && response.data.token) {
-        this.token = response.data.token;
-        this.user = response.data.user;
-        this.isOfflineMode = false;
-        this.lastSyncTime = new Date();
+      const response = await fetch(url, {
+        ...options,
+        headers
+      })
+
+      // Handle token expiration specifically
+      if (response.status === 401 || response.status === 403) {
+        const data = await response.json()
+        if (data.code === 'TOKEN_EXPIRED' || data.code === 'INVALID_TOKEN') {
+          console.log('🚨 Token expired during API call')
+          this.handleTokenExpiration()
+          throw new Error('Session expired')
+        }
+      }
+
+      return response
+    } catch (error) {
+      console.error('API request error:', error)
+      throw error
+    }
+  }
+
+  // Business user login
+  async loginClient(email, password) {
+    try {
+      console.log('🔐 Client login attempt for:', email)
+      
+      const response = await fetch(`${this.baseURL}${API_CONFIG.ENDPOINTS.AUTH.LOGIN}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password })
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok && data.token) {
+        this.token = data.token
+        this.user = data.user
+        this.userType = 'client'
+        this.company = data.company
+        this.subscription = data.subscription
         
-        // Set auth header for future requests
-        this.setAuthHeader(this.token);
+        this.saveToStorage()
+        this.startTokenValidation()
         
-        // Save to storage
-        this.saveToStorage();
-        
-        // Cache credentials for offline use (hashed)
-        await this.cacheCredentials(email, password);
-        
-        console.log('✅ Login successful');
+        console.log('✅ Client login successful')
         
         return {
           success: true,
           user: this.user,
-          token: this.token,
-          source: response.data.source || 'online'
-        };
-      } else {
-        throw new Error('Invalid response from server');
-      }
-      
-    } catch (error) {
-      console.error('❌ Login error:', error);
-      
-      // If network error, try offline login
-      if (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK' || !navigator.onLine) {
-        console.log('📴 Network error, attempting offline login...');
-        return this.offlineLogin(email, password);
-      }
-      
-      // Parse error response
-      let errorMessage = 'Login failed';
-      let errorCode = 'LOGIN_ERROR';
-      
-      if (error.response?.data) {
-        errorMessage = error.response.data.error || errorMessage;
-        errorCode = error.response.data.code || errorCode;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      return {
-        success: false,
-        error: errorMessage,
-        code: errorCode
-      };
-    }
-  }
-
-  // Offline login (using cached credentials)
-  async offlineLogin(email, password) {
-    try {
-      console.log('📴 Attempting offline login...');
-      
-      // Check cached credentials
-      const cachedCreds = localStorage.getItem('cachedAuth');
-      
-      if (!cachedCreds) {
-        return {
-          success: false,
-          error: 'No cached credentials available for offline login',
-          code: 'NO_CACHED_CREDENTIALS'
-        };
-      }
-      
-      const cached = JSON.parse(cachedCreds);
-      
-      // Simple check - in production, use proper hashing
-      if (cached.email === email && cached.passwordHash === btoa(password)) {
-        // Load cached user data
-        const cachedUser = localStorage.getItem('userData');
-        
-        if (cachedUser) {
-          this.user = JSON.parse(cachedUser);
-          this.isOfflineMode = true;
-          
-          console.log('✅ Offline login successful');
-          
-          return {
-            success: true,
-            user: this.user,
-            offline: true,
-            source: 'offline'
-          };
+          company: this.company,
+          subscription: this.subscription,
+          userType: 'client'
         }
+      } else {
+        throw new Error(data.error || 'Login failed')
       }
       
-      return {
-        success: false,
-        error: 'Invalid offline credentials',
-        code: 'INVALID_OFFLINE_CREDENTIALS'
-      };
-      
     } catch (error) {
-      console.error('❌ Offline login error:', error);
+      console.error('❌ Client login error:', error)
       return {
         success: false,
-        error: 'Offline login failed',
-        code: 'OFFLINE_LOGIN_ERROR'
-      };
+        error: error.message || 'Login failed'
+      }
     }
   }
 
-  // Cache credentials for offline use
-  async cacheCredentials(email, password) {
+  // Super admin login
+  async loginSuperAdmin(email, password) {
     try {
-      // Simple encoding - in production, use proper encryption
-      const cached = {
-        email,
-        passwordHash: btoa(password),
-        timestamp: new Date().toISOString()
-      };
+      console.log('🔐 Super admin login attempt for:', email)
       
-      localStorage.setItem('cachedAuth', JSON.stringify(cached));
+      const response = await fetch(`${this.baseURL}${API_CONFIG.ENDPOINTS.AUTH.SUPER_ADMIN_LOGIN}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password })
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok && data.token) {
+        this.token = data.token
+        this.user = data.user
+        this.userType = 'super_admin'
+        this.company = null
+        this.subscription = null
+        
+        this.saveToStorage()
+        this.startTokenValidation()
+        
+        console.log('✅ Super admin login successful')
+        
+        return {
+          success: true,
+          user: this.user,
+          userType: 'super_admin'
+        }
+      } else {
+        throw new Error(data.error || 'Login failed')
+      }
+      
     } catch (error) {
-      console.error('Error caching credentials:', error);
+      console.error('❌ Super admin login error:', error)
+      return {
+        success: false,
+        error: error.message || 'Login failed'
+      }
+    }
+  }
+
+  // Register company
+  async registerCompany(companyData, userData, subscriptionPlan = 'trial') {
+    try {
+      console.log('🏢 Company registration for:', companyData.name)
+      
+      const response = await fetch(`${this.baseURL}${API_CONFIG.ENDPOINTS.AUTH.REGISTER}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          company: companyData,
+          user: userData,
+          subscription: { plan: subscriptionPlan }
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok && data.success) {
+        console.log('✅ Company registration successful')
+        
+        return {
+          success: true,
+          company: data.company,
+          user: data.user
+        }
+      } else {
+        throw new Error(data.error || 'Registration failed')
+      }
+      
+    } catch (error) {
+      console.error('❌ Registration error:', error)
+      return {
+        success: false,
+        error: error.message || 'Registration failed'
+      }
     }
   }
 
@@ -228,165 +338,63 @@ class AuthService {
   async logout() {
     try {
       // Try to notify server
-      if (this.token && !this.isOfflineMode) {
+      if (this.token) {
         try {
-          await axios.post(`${this.baseURL}/auth/logout`, {}, {
-            headers: {
-              'Authorization': `Bearer ${this.token}`
-            },
-            timeout: 5000
-          });
+          await this.apiRequest(API_CONFIG.ENDPOINTS.AUTH.LOGOUT, {
+            method: 'POST'
+          })
         } catch (error) {
-          // Ignore logout errors - continue with local cleanup
-          console.log('Server logout failed, continuing with local cleanup');
+          console.log('Server logout failed, continuing with local cleanup')
         }
       }
       
-      // Clear local auth data
-      this.token = null;
-      this.user = null;
-      this.isOfflineMode = false;
+      // Clear local data
+      this.clearSession()
       
-      // Clear auth header
-      this.setAuthHeader(null);
+      console.log('✅ Logout successful')
       
-      // Clear storage and cookies
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('userData');
-      localStorage.removeItem('cachedAuth');
-      
-      // Clear cookie
-      document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
-      
-      console.log('✅ Logout successful');
-      
-      return {
-        success: true,
-        message: 'Logout successful'
-      };
+      return { success: true }
       
     } catch (error) {
-      console.error('❌ Logout error:', error);
-      return {
-        success: false,
-        error: 'Logout failed'
-      };
+      console.error('❌ Logout error:', error)
+      // Even if logout fails, clear local session
+      this.clearSession()
+      return { success: false, error: error.message }
     }
   }
 
   // Check if user is authenticated
   isAuthenticated() {
-    return !!(this.token || this.user);
+    return !!(this.token && this.user)
   }
 
   // Get current user
   getCurrentUser() {
-    return this.user;
+    return this.user
+  }
+
+  // Get user type
+  getUserType() {
+    return this.userType
+  }
+
+  // Get company (for client users)
+  getCompany() {
+    return this.company
+  }
+
+  // Get subscription (for client users)
+  getSubscription() {
+    return this.subscription
   }
 
   // Get auth token
   getToken() {
-    return this.token;
-  }
-
-  // Check connection to server
-  async checkConnection() {
-    try {
-      const response = await axios.get(`${this.baseURL}/health`, {
-        timeout: 5000
-      });
-      return response.data.status === 'healthy';
-    } catch (error) {
-      console.log('❌ Connection check failed:', error.message);
-      return false;
-    }
-  }
-
-  // Sync data with server
-  async syncWithServer() {
-    if (this.isOfflineMode || !this.token) {
-      return { success: false, message: 'Cannot sync in offline mode or without auth' };
-    }
-    
-    try {
-      const response = await axios.get(`${this.baseURL}/sync/all`, {
-        headers: {
-          'Authorization': `Bearer ${this.token}`
-        },
-        timeout: 10000
-      });
-      
-      if (response.data) {
-        this.lastSyncTime = new Date();
-        this.saveToStorage();
-        
-        // Store synced data in localStorage for offline use
-        localStorage.setItem('syncedData', JSON.stringify(response.data));
-        localStorage.setItem('lastSyncTime', this.lastSyncTime.toISOString());
-        
-        console.log('✅ Data synced successfully');
-        
-        return {
-          success: true,
-          data: response.data,
-          timestamp: this.lastSyncTime
-        };
-      }
-      
-    } catch (error) {
-      console.error('❌ Sync error:', error);
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
-
-  // Get user profile
-  async getProfile() {
-    if (!this.token) {
-      return { success: false, error: 'Not authenticated' };
-    }
-    
-    try {
-      const response = await axios.get(`${this.baseURL}/auth/profile`, {
-        headers: {
-          'Authorization': `Bearer ${this.token}`
-        },
-        timeout: 10000
-      });
-      
-      if (response.data && response.data.user) {
-        this.user = response.data.user;
-        this.saveToStorage();
-        
-        return {
-          success: true,
-          user: this.user
-        };
-      }
-      
-    } catch (error) {
-      console.error('❌ Get profile error:', error);
-      
-      // If offline, return cached user
-      if (this.user) {
-        return {
-          success: true,
-          user: this.user,
-          offline: true
-        };
-      }
-      
-      return {
-        success: false,
-        error: error.message
-      };
-    }
+    return this.token
   }
 }
 
 // Create singleton instance
-const authService = new AuthService();
+const authService = new AuthService()
 
-export default authService;
+export default authService
