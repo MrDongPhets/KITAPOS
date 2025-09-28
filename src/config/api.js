@@ -17,7 +17,7 @@ const getApiUrl = () => {
   
   // Production fallback - this should ideally never be reached if env var is set
   console.log('⚠️ No API URL env var found, using production fallback')
-  return 'https://kitapos-backend.vercel.app'
+  return 'https://kitapos-backend.onrender.com'
 }
 
 const API_CONFIG = {
