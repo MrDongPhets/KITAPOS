@@ -1,30 +1,26 @@
-// src/config/api.js - Fixed with proper fallback
+// src/config/api.js - Fixed for Vercel production
 const getApiUrl = () => {
-  // Get the environment variable
-  const envApiUrl = process.env.NEXT_PUBLIC_API_URL
+  // IMPORTANT: In Next.js, environment variables are replaced at build time
+  // Make sure NEXT_PUBLIC_API_URL is set in Vercel environment variables
   
-  // If environment variable exists, use it
-  if (envApiUrl) {
-    console.log('🔗 Using API URL from environment:', envApiUrl)
-    return envApiUrl
+  // First, check if we have the environment variable
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    console.log('🔗 Using API URL from environment:', process.env.NEXT_PUBLIC_API_URL)
+    return process.env.NEXT_PUBLIC_API_URL
   }
   
-  // Fallback logic based on environment
-  const isDevelopment = process.env.NODE_ENV === 'development'
-  const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost'
-  
-  // If in development or on localhost, use local API
-  if (isDevelopment || isLocalhost) {
-    console.log('🔗 Fallback to localhost for development')
+  // For development fallback
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔗 Using localhost for development')
     return 'http://localhost:3001'
   }
   
-  // Production fallback
-  console.log('🔗 Using production fallback URL')
+  // Production fallback - this should ideally never be reached if env var is set
+  console.log('⚠️ No API URL env var found, using production fallback')
   return 'https://kitapos-backend.vercel.app'
 }
 
-export const API_CONFIG = {
+const API_CONFIG = {
   BASE_URL: getApiUrl(),
   ENDPOINTS: {
     AUTH: {
@@ -43,21 +39,13 @@ export const API_CONFIG = {
   }
 }
 
-// Enhanced logging for debugging
-console.log('🔗 API Configuration Debug:', {
-  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'NOT SET',
-  NODE_ENV: process.env.NODE_ENV || 'NOT SET',
-  COMPUTED_BASE_URL: API_CONFIG.BASE_URL,
-  IS_BROWSER: typeof window !== 'undefined',
-  HOSTNAME: typeof window !== 'undefined' ? window.location.hostname : 'server'
-})
-
-// Validate configuration
-if (!API_CONFIG.BASE_URL) {
-  console.error('❌ API_CONFIG.BASE_URL is undefined! Check your environment variables.')
-} else {
-  console.log('✅ API Configuration loaded successfully')
-  console.log('📡 API Base URL:', API_CONFIG.BASE_URL)
+// Debug logging (only in development)
+if (process.env.NODE_ENV === 'development') {
+  console.log('🔗 API Configuration:', {
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'NOT SET',
+    NODE_ENV: process.env.NODE_ENV || 'NOT SET',
+    COMPUTED_BASE_URL: API_CONFIG.BASE_URL
+  })
 }
 
 export default API_CONFIG
