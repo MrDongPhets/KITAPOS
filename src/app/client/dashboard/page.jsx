@@ -1,42 +1,31 @@
-// src/app/client/dashboard/page.jsx - Updated to use real API calls
+// src/app/client/dashboard/page.jsx - Simple version without context
 "use client"
 
 import { useState, useEffect } from "react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/ui/app-sidebar"
+import { SimpleStoreSelector } from "@/components/store/SimpleStoreSelector"
+import { useStores } from "@/hooks/useStores"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import {
   Breadcrumb,
   BreadcrumbItem,
-  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
-  BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { 
   ShoppingCart, 
   Package, 
   Users, 
   DollarSign,
-  TrendingUp,
-  TrendingDown,
-  Activity,
   RefreshCw,
   Loader2,
   AlertCircle,
-  Plus,
-  Eye
+  Building2,
+  Store as StoreIcon
 } from "lucide-react"
 import API_CONFIG from "@/config/api"
 
@@ -47,7 +36,19 @@ export default function ClientDashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
   
-  // Dashboard data states
+  // Use the simple store hook
+  const {
+    stores,
+    selectedStore,
+    viewMode,
+    isAllStoresView,
+    fetchStores,
+    selectStore,
+    toggleViewMode,
+    getApiUrl
+  } = useStores()
+  
+  // Dashboard data
   const [dashboardData, setDashboardData] = useState({
     overview: {
       totalSales: 0,
@@ -62,20 +63,23 @@ export default function ClientDashboard() {
   })
 
   useEffect(() => {
-    // Get user and company data from localStorage
     const userData = localStorage.getItem('userData')
     const companyData = localStorage.getItem('companyData')
     
-    if (userData) {
-      setUser(JSON.parse(userData))
-    }
-    if (companyData) {
-      setCompany(JSON.parse(companyData))
-    }
+    if (userData) setUser(JSON.parse(userData))
+    if (companyData) setCompany(JSON.parse(companyData))
 
-    // Fetch dashboard data
+    // Fetch stores and initial dashboard data
+    fetchStores()
     fetchDashboardData()
   }, [])
+
+  // Refetch data when store selection changes
+  useEffect(() => {
+    if (stores.length > 0) {
+      fetchDashboardData()
+    }
+  }, [selectedStore, isAllStoresView, stores])
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('authToken')
@@ -85,14 +89,12 @@ export default function ClientDashboard() {
     }
   }
 
-  const makeApiCall = async (endpoint, options = {}) => {
+  const makeApiCall = async (endpoint) => {
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}${endpoint}`, {
-        headers: getAuthHeaders(),
-        ...options
+      const response = await fetch(getApiUrl(endpoint), {
+        headers: getAuthHeaders()
       })
 
-      // Handle token expiration
       if (response.status === 401 || response.status === 403) {
         const errorData = await response.json()
         
@@ -124,9 +126,10 @@ export default function ClientDashboard() {
       setLoading(true)
       setError(null)
 
-      console.log('📊 Fetching dashboard data from API...')
+      console.log(`📊 Fetching dashboard data for: ${
+        isAllStoresView ? 'ALL STORES' : selectedStore?.name || 'NO STORE'
+      }`)
 
-      // Fetch all dashboard data in parallel
       const [overviewData, recentSalesData, lowStockData, topProductsData, storesData] = await Promise.all([
         makeApiCall('/client/dashboard/overview'),
         makeApiCall('/client/dashboard/recent-sales'),
@@ -135,57 +138,57 @@ export default function ClientDashboard() {
         makeApiCall('/client/dashboard/stores')
       ])
 
-      if (!overviewData || !recentSalesData || !lowStockData || !topProductsData || !storesData) {
-        throw new Error('Failed to fetch dashboard data')
+      if (overviewData && recentSalesData && lowStockData && topProductsData && storesData) {
+        setDashboardData({
+          overview: overviewData.overview,
+          recentSales: recentSalesData.recentSales,
+          lowStockProducts: lowStockData.lowStockProducts,
+          topProducts: topProductsData.topProducts,
+          stores: storesData.stores
+        })
       }
-
-      setDashboardData({
-        overview: overviewData.overview,
-        recentSales: recentSalesData.recentSales,
-        lowStockProducts: lowStockData.lowStockProducts,
-        topProducts: topProductsData.topProducts,
-        stores: storesData.stores
-      })
 
       console.log('✅ Dashboard data loaded successfully')
 
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
       setError(error.message)
-      
-      // Fallback to mock data if API fails
-      setDashboardData({
-        overview: {
-          totalSales: 0,
-          totalProducts: 0,
-          totalStaff: 0,
-          lowStockItems: 0
-        },
-        recentSales: [],
-        lowStockProducts: [],
-        topProducts: [],
-        stores: []
-      })
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
 
-  const handleRefresh = async () => {
+  const handleRefresh = () => {
     setRefreshing(true)
-    await fetchDashboardData()
-    setRefreshing(false)
+    fetchDashboardData()
+  }
+
+  // Dashboard title based on view mode
+  const getDashboardTitle = () => {
+    if (isAllStoresView) {
+      return "All Stores Dashboard"
+    } else if (selectedStore) {
+      return `${selectedStore.name} Dashboard`
+    } else {
+      return "Store Dashboard"
+    }
   }
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
-    }).format(amount)
+    }).format(amount || 0)
   }
 
-  const formatDateTime = (dateString) => {
-    return new Date(dateString).toLocaleString()
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
   }
 
   if (loading) {
@@ -194,7 +197,6 @@ export default function ClientDashboard() {
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
           <p className="text-gray-600">Loading dashboard...</p>
-          <p className="text-xs text-gray-500 mt-2">API: {API_CONFIG.BASE_URL}</p>
         </div>
       </div>
     )
@@ -207,7 +209,6 @@ export default function ClientDashboard() {
           <AlertCircle className="h-8 w-8 mx-auto mb-4 text-red-600" />
           <h2 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Dashboard</h2>
           <p className="text-gray-600 mb-4">{error}</p>
-          <p className="text-xs text-gray-500 mb-4">API: {API_CONFIG.BASE_URL}</p>
           <Button onClick={handleRefresh} className="bg-blue-600 hover:bg-blue-700">
             <RefreshCw className="mr-2 h-4 w-4" />
             Try Again
@@ -221,29 +222,30 @@ export default function ClientDashboard() {
     <SidebarProvider>
       <AppSidebar userType="client" user={user} company={company} />
       <SidebarInset>
-        {/* Header */}
+        {/* Header with Store Selector */}
         <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
           <div className="flex items-center gap-2 px-4">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
             <Breadcrumb>
               <BreadcrumbList>
-                <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="/client">
-                    Business
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
                 <BreadcrumbItem>
                   <BreadcrumbPage>Dashboard</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
           </div>
-          <div className="ml-auto px-4 flex items-center gap-2">
-            <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-              {company?.name || 'Business Dashboard'}
-            </Badge>
+          
+          {/* Store Selector in Header */}
+          <div className="ml-auto px-4 flex items-center gap-4">
+            <SimpleStoreSelector 
+              stores={stores}
+              selectedStore={selectedStore}
+              onStoreSelect={selectStore}
+              viewMode={viewMode}
+              onToggleViewMode={toggleViewMode}
+              loading={false}
+            />
             <Button 
               variant="outline" 
               size="sm"
@@ -258,24 +260,30 @@ export default function ClientDashboard() {
 
         {/* Main Content */}
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-          {/* Welcome Header */}
+          {/* Page Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-gray-900">
-                Welcome back, {user?.name?.split(' ')[0] || 'Manager'}!
+              <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2">
+                {isAllStoresView ? (
+                  <Building2 className="h-6 w-6 text-blue-600" />
+                ) : (
+                  <StoreIcon className="h-6 w-6 text-blue-600" />
+                )}
+                {getDashboardTitle()}
               </h1>
               <p className="text-gray-600 mt-1">
-                Here's what's happening with {company?.name || 'your business'} today
+                {isAllStoresView 
+                  ? `Consolidated view across ${stores.length} stores`
+                  : selectedStore 
+                    ? `Viewing data for ${selectedStore.name}`
+                    : "Select a store to view specific data"
+                }
               </p>
             </div>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="mr-2 h-4 w-4" />
-              New Sale
-            </Button>
           </div>
 
-          {/* Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -284,9 +292,8 @@ export default function ClientDashboard() {
                     <p className="text-2xl font-bold text-gray-900">
                       {formatCurrency(dashboardData.overview.totalSales)}
                     </p>
-                    <p className="text-xs text-green-600 flex items-center mt-1">
-                      <TrendingUp className="h-3 w-3 mr-1" />
-                      +12% from yesterday
+                    <p className="text-xs text-gray-500 mt-1">
+                      {isAllStoresView ? 'All stores combined' : 'This store today'}
                     </p>
                   </div>
                   <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -305,7 +312,7 @@ export default function ClientDashboard() {
                       {dashboardData.overview.totalProducts}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
-                      Active inventory items
+                      {isAllStoresView ? 'Across all stores' : 'In this store'}
                     </p>
                   </div>
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -338,151 +345,137 @@ export default function ClientDashboard() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Low Stock Alert</p>
+                    <p className="text-sm font-medium text-gray-600">Low Stock</p>
                     <p className="text-2xl font-bold text-gray-900">
                       {dashboardData.overview.lowStockItems}
                     </p>
-                    <p className="text-xs text-orange-600 flex items-center mt-1">
-                      <AlertCircle className="h-3 w-3 mr-1" />
-                      Items need restocking
+                    <p className="text-xs text-gray-500 mt-1">
+                      Items need attention
                     </p>
                   </div>
                   <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                    <Activity className="h-6 w-6 text-orange-600" />
+                    <AlertCircle className="h-6 w-6 text-orange-600" />
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Main Content Grid */}
+          {/* Store Performance Grid (when viewing all stores) */}
+          {isAllStoresView && stores.length > 1 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Store Performance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {stores.map((store) => (
+                    <div 
+                      key={store.id}
+                      className="p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => selectStore(store)}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-medium text-gray-900">{store.name}</h3>
+                        <Badge
+                          variant="secondary"
+                          className={
+                            store.status === 'active' 
+                              ? 'bg-green-100 text-green-700' 
+                              : 'bg-gray-100 text-gray-600'
+                          }
+                        >
+                          {store.status}
+                        </Badge>
+                      </div>
+                      <p className="text-2xl font-bold text-green-600 mb-1">
+                        {formatCurrency(store.sales)}
+                      </p>
+                      <p className="text-xs text-gray-500">Today's sales</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Recent Sales and Low Stock Products */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Recent Sales */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Recent Sales</CardTitle>
-                  <Button variant="outline" size="sm">
-                    <Eye className="mr-2 h-4 w-4" />
-                    View All
-                  </Button>
-                </div>
+                <CardTitle className="text-lg">Recent Sales</CardTitle>
               </CardHeader>
               <CardContent>
                 {dashboardData.recentSales.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Time</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Items</TableHead>
-                        <TableHead>Staff</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {dashboardData.recentSales.map((sale) => (
-                        <TableRow key={sale.id}>
-                          <TableCell className="text-sm">
-                            {formatDateTime(sale.date)}
-                          </TableCell>
-                          <TableCell className="font-medium">
+                  <div className="space-y-4">
+                    {dashboardData.recentSales.map((sale) => (
+                      <div key={sale.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <p className="font-medium text-gray-900">
                             {formatCurrency(sale.amount)}
-                          </TableCell>
-                          <TableCell>{sale.items} items</TableCell>
-                          <TableCell className="text-sm text-gray-600">
-                            {sale.staff}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {sale.items} items • {sale.staff}
+                          </p>
+                          {isAllStoresView && sale.store && (
+                            <p className="text-xs text-gray-500">{sale.store}</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-500">
+                            {formatDate(sale.date)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <ShoppingCart className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                    <p>No sales recorded today</p>
+                  <div className="text-center py-8">
+                    <ShoppingCart className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p className="text-gray-500">No recent sales</p>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Low Stock Alert */}
+            {/* Low Stock Products */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <AlertCircle className="h-5 w-5 text-orange-600" />
-                    Low Stock Alert
-                  </CardTitle>
-                  <Button variant="outline" size="sm">
-                    <Package className="mr-2 h-4 w-4" />
-                    Restock
-                  </Button>
-                </div>
+                <CardTitle className="text-lg">Low Stock Alert</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 {dashboardData.lowStockProducts.length > 0 ? (
-                  dashboardData.lowStockProducts.map((product) => (
-                    <div 
-                      key={product.id} 
-                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">{product.name}</p>
-                        <p className="text-sm text-gray-600">{product.category}</p>
+                  <div className="space-y-4">
+                    {dashboardData.lowStockProducts.slice(0, 5).map((product) => (
+                      <div key={product.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <p className="font-medium text-gray-900">{product.name}</p>
+                          <p className="text-sm text-gray-600">{product.category}</p>
+                          {isAllStoresView && product.store && (
+                            <p className="text-xs text-gray-500">{product.store}</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <Badge variant="destructive" className="bg-orange-100 text-orange-800">
+                            {product.currentStock} left
+                          </Badge>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Min: {product.minLevel}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm">
-                          <span className="font-medium text-orange-600">{product.stock}</span>
-                          <span className="text-gray-400"> / {product.minStock}</span>
-                        </p>
-                        <Badge variant="secondary" className="bg-orange-100 text-orange-800">
-                          Low Stock
-                        </Badge>
-                      </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Package className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                    <p>All products are well stocked</p>
+                  <div className="text-center py-8">
+                    <Package className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p className="text-gray-500">All products in stock</p>
                   </div>
                 )}
               </CardContent>
             </Card>
           </div>
-
-          {/* Top Products */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Top Selling Products Today</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {dashboardData.topProducts.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {dashboardData.topProducts.map((product, index) => (
-                    <div key={index} className="p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-blue-600">#{index + 1}</span>
-                        <TrendingUp className="h-4 w-4 text-green-600" />
-                      </div>
-                      <h3 className="font-medium text-gray-900 mb-1">{product.name}</h3>
-                      <div className="space-y-1">
-                        <p className="text-sm text-gray-600">{product.sales} units sold</p>
-                        <p className="text-sm font-medium text-green-600">
-                          {formatCurrency(product.revenue)}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <TrendingUp className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                  <p>No sales data available</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
       </SidebarInset>
     </SidebarProvider>
