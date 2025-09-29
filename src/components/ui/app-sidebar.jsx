@@ -1,5 +1,7 @@
+// src/components/ui/app-sidebar.jsx - Complete version with clickable inventory
 "use client"
 
+import { useState } from "react"
 import { 
   Building2, 
   Users, 
@@ -12,7 +14,11 @@ import {
   Package, 
   BarChart3,
   LogOut,
-  User
+  User,
+  Layers,
+  Tag,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -66,7 +72,7 @@ const superAdminNavigation = [
   },
 ]
 
-// Client navigation items
+// Client navigation items with Inventory submenu
 const clientNavigation = [
   {
     name: "Dashboard",
@@ -80,8 +86,24 @@ const clientNavigation = [
   },
   {
     name: "Inventory",
-    href: "/client/inventory",
     icon: Package,
+    subItems: [
+      {
+        name: "Products",
+        href: "/client/inventory/products",
+        icon: Package,
+      },
+      {
+        name: "Categories", 
+        href: "/client/inventory/categories",
+        icon: Tag,
+      },
+      {
+        name: "Stock Movement",
+        href: "/client/inventory/movements",
+        icon: Layers,
+      }
+    ]
   },
   {
     name: "Staff",
@@ -102,6 +124,7 @@ const clientNavigation = [
 
 export function AppSidebar({ userType = "client", user = null, company = null }) {
   const pathname = usePathname()
+  const [inventoryExpanded, setInventoryExpanded] = useState(pathname.startsWith('/client/inventory'))
   
   // Determine which navigation to use
   const navigation = userType === "super_admin" ? superAdminNavigation : clientNavigation
@@ -146,6 +169,51 @@ export function AppSidebar({ userType = "client", user = null, company = null })
           <SidebarGroupContent>
             <SidebarMenu>
               {navigation.map((item) => {
+                // Handle items with submenus (like Inventory)
+                if (item.subItems) {
+                  const isInventoryActive = pathname.startsWith('/client/inventory')
+                  
+                  return (
+                    <div key={item.name}>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton 
+                          onClick={() => setInventoryExpanded(!inventoryExpanded)}
+                          isActive={isInventoryActive}
+                          className="cursor-pointer"
+                        >
+                          <item.icon />
+                          <span>{item.name}</span>
+                          {inventoryExpanded ? (
+                            <ChevronDown className="ml-auto h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="ml-auto h-4 w-4" />
+                          )}
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      
+                      {/* Sub-items for Inventory */}
+                      {inventoryExpanded && (
+                        <div className="ml-6 mt-1 space-y-1">
+                          {item.subItems.map((subItem) => {
+                            const isSubItemActive = pathname === subItem.href
+                            return (
+                              <SidebarMenuItem key={subItem.name}>
+                                <SidebarMenuButton asChild isActive={isSubItemActive} size="sm">
+                                  <Link href={subItem.href} className="text-sm">
+                                    <subItem.icon className="h-4 w-4" />
+                                    <span>{subItem.name}</span>
+                                  </Link>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+                
+                // Regular menu items
                 const isActive = pathname === item.href
                 return (
                   <SidebarMenuItem key={item.name}>
