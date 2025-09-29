@@ -1,4 +1,4 @@
-// src/app/client/inventory/products/page.jsx - Complete version with Add Product Modal
+// src/app/client/inventory/products/page.jsx - Updated with action handlers
 "use client"
 
 import { useState, useEffect } from "react"
@@ -56,6 +56,11 @@ import {
   Barcode
 } from "lucide-react"
 import { AddProductModal } from "@/components/inventory/AddProductModal"
+import { 
+  ViewProductModal,
+  EditProductModal,
+  DeleteProductDialog
+} from "@/components/inventory/ProductActionsModals"
 import API_CONFIG from "@/config/api"
 
 export default function ProductsPage() {
@@ -73,7 +78,13 @@ export default function ProductsPage() {
   // Filters and search
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
-  const [stockFilter, setStockFilter] = useState("all") // all, low-stock, out-of-stock
+  const [stockFilter, setStockFilter] = useState("all")
+  
+  // Modal states
+  const [selectedProduct, setSelectedProduct] = useState(null)
+  const [showViewModal, setShowViewModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   useEffect(() => {
     // Get user and company data from localStorage
@@ -87,7 +98,7 @@ export default function ProductsPage() {
       setCompany(JSON.parse(companyData))
     }
 
-    // Fetch data
+    // Fetch initial data
     fetchProducts()
     fetchCategories()
   }, [])
@@ -123,7 +134,8 @@ export default function ProductsPage() {
       }
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        const errorData = await response.json()
+        throw new Error(errorData.error || `HTTP ${response.status}`)
       }
 
       return await response.json()
@@ -135,71 +147,68 @@ export default function ProductsPage() {
 
   const fetchProducts = async () => {
     try {
-      setLoading(true)
       setError(null)
-
-      console.log('📦 Fetching products...')
-
       const data = await makeApiCall('/client/products')
       
       if (data) {
         setProducts(data.products || [])
-        setTotalProducts(data.count || 0)
-        console.log('✅ Products loaded:', data.products?.length || 0)
+        setTotalProducts(data.products?.length || 0)
       }
-
     } catch (error) {
       console.error('Failed to fetch products:', error)
-      setError(error.message)
+      setError('Failed to load products. Please try again.')
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
 
   const fetchCategories = async () => {
     try {
       const data = await makeApiCall('/client/products/categories')
-      
       if (data) {
         setCategories(data.categories || [])
-        console.log('✅ Categories loaded:', data.categories?.length || 0)
       }
-
     } catch (error) {
       console.error('Failed to fetch categories:', error)
     }
   }
 
-  const handleRefresh = async () => {
+  const handleRefresh = () => {
     setRefreshing(true)
-    await Promise.all([fetchProducts(), fetchCategories()])
-    setRefreshing(false)
+    fetchProducts()
   }
 
   const handleProductAdded = (newProduct) => {
-    // Refresh the products list
-    fetchProducts()
-    console.log('✅ New product added:', newProduct.name)
+    setProducts(prev => [newProduct, ...prev])
+    setTotalProducts(prev => prev + 1)
   }
 
-  const handleDeleteProduct = async (productId, productName) => {
-    if (!confirm(`Are you sure you want to delete "${productName}"? This action cannot be undone.`)) {
-      return
-    }
+  const handleProductUpdated = (updatedProduct) => {
+    setProducts(prev => prev.map(product => 
+      product.id === updatedProduct.id ? updatedProduct : product
+    ))
+  }
 
-    try {
-      await makeApiCall(`/client/products/${productId}`, {
-        method: 'DELETE'
-      })
+  const handleProductDeleted = (deletedProductId) => {
+    setProducts(prev => prev.filter(product => product.id !== deletedProductId))
+    setTotalProducts(prev => prev - 1)
+  }
 
-      // Refresh products list
-      fetchProducts()
-      alert(`Product "${productName}" has been deleted successfully.`)
+  // Action handlers
+  const handleViewProduct = (product) => {
+    setSelectedProduct(product)
+    setShowViewModal(true)
+  }
 
-    } catch (error) {
-      console.error('Delete product error:', error)
-      alert('Failed to delete product. Please try again.')
-    }
+  const handleEditProduct = (product) => {
+    setSelectedProduct(product)
+    setShowEditModal(true)
+  }
+
+  const handleDeleteProduct = (product) => {
+    setSelectedProduct(product)
+    setShowDeleteDialog(true)
   }
 
   const formatCurrency = (amount) => {
@@ -449,41 +458,35 @@ export default function ProductsPage() {
                   <TableBody>
                     {filteredProducts.map((product) => {
                       const stockStatus = getStockStatus(product)
+                      
                       return (
                         <TableRow key={product.id}>
-                          <TableCell>
+                          <TableCell className="font-medium">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                                {product.image_url ? (
-                                  <img 
-                                    src={product.image_url} 
-                                    alt={product.name}
-                                    className="w-10 h-10 rounded-lg object-cover"
-                                  />
-                                ) : (
-                                  <ImageIcon className="h-5 w-5 text-gray-400" />
-                                )}
-                              </div>
+                              {product.image_url ? (
+                                <img
+                                  src={product.image_url}
+                                  alt={product.name}
+                                  className="w-10 h-10 rounded object-cover"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none'
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center">
+                                  <ImageIcon className="h-4 w-4 text-gray-400" />
+                                </div>
+                              )}
                               <div>
-                                <p className="font-medium text-gray-900">{product.name}</p>
-                                <p className="text-sm text-gray-500 truncate max-w-xs">
-                                  {product.description || 'No description'}
-                                </p>
+                                <div className="font-medium">{product.name}</div>
+                                <div className="text-sm text-gray-500">{product.description}</div>
                               </div>
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-2">
-                              {product.categories?.color && (
-                                <div 
-                                  className="w-3 h-3 rounded-full"
-                                  style={{ backgroundColor: product.categories.color }}
-                                />
-                              )}
-                              <span className="text-sm">
-                                {product.categories?.name || 'Uncategorized'}
-                              </span>
-                            </div>
+                            <span className="text-sm">
+                              {product.categories?.name || 'Uncategorized'}
+                            </span>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
@@ -515,18 +518,18 @@ export default function ProductsPage() {
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleViewProduct(product)}>
                                   <Eye className="mr-2 h-4 w-4" />
                                   View Details
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleEditProduct(product)}>
                                   <Edit className="mr-2 h-4 w-4" />
                                   Edit Product
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem 
                                   className="text-red-600"
-                                  onClick={() => handleDeleteProduct(product.id, product.name)}
+                                  onClick={() => handleDeleteProduct(product)}
                                 >
                                   <Trash2 className="mr-2 h-4 w-4" />
                                   Delete Product
@@ -564,6 +567,27 @@ export default function ProductsPage() {
           </Card>
         </div>
       </SidebarInset>
+
+      {/* Action Modals */}
+      <ViewProductModal
+        product={selectedProduct}
+        open={showViewModal}
+        onOpenChange={setShowViewModal}
+      />
+
+      <EditProductModal
+        product={selectedProduct}
+        open={showEditModal}
+        onOpenChange={setShowEditModal}
+        onProductUpdated={handleProductUpdated}
+      />
+
+      <DeleteProductDialog
+        product={selectedProduct}
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onProductDeleted={handleProductDeleted}
+      />
     </SidebarProvider>
   )
 }

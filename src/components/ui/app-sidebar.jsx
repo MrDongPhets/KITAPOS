@@ -1,4 +1,4 @@
-// src/components/ui/app-sidebar.jsx - Complete version with clickable inventory
+
 "use client"
 
 import { useState } from "react"
@@ -132,7 +132,7 @@ export function AppSidebar({ userType = "client", user = null, company = null })
   // Determine branding
   const isAdmin = userType === "super_admin"
   const brandName = isAdmin ? "Admin Portal" : (company?.name || "Business")
-  const brandIcon = isAdmin ? Crown : Building2
+  const BrandIcon = isAdmin ? Crown : Building2  // Use PascalCase for component
 
   const handleLogout = () => {
     localStorage.removeItem('authToken')
@@ -156,7 +156,7 @@ export function AppSidebar({ userType = "client", user = null, company = null })
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2">
           <div className={`w-8 h-8 ${isAdmin ? 'bg-purple-600' : 'bg-blue-600'} rounded-lg flex items-center justify-center`}>
-            {brandIcon && <brandIcon className="h-5 w-5 text-white" />}
+            <BrandIcon className="h-5 w-5 text-white" />
           </div>
           <span className="font-semibold text-lg truncate">{brandName}</span>
         </div>

@@ -1,4 +1,4 @@
-// src/components/inventory/AddProductModal.jsx
+// src/components/inventory/AddProductModal.jsx - With centered success modal
 "use client"
 
 import { useState, useEffect } from "react"
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { ImageUpload } from "@/components/ui/image-upload"
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { SuccessModal } from "@/components/ui/success-modal"  // Import the success modal
 import { Loader2, Plus, Package, AlertCircle } from "lucide-react"
 import API_CONFIG from "@/config/api"
 
@@ -30,7 +32,10 @@ export function AddProductModal({ onProductAdded, trigger }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
+  
+  // Success modal state
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [successMessage, setSuccessMessage] = useState("")
   
   // Form data
   const [formData, setFormData] = useState({
@@ -86,7 +91,7 @@ export function AddProductModal({ onProductAdded, trigger }) {
         image_url: ""
       })
       setError("")
-      setSuccess("")
+      setSuccessMessage("")
     }
   }, [open])
 
@@ -188,7 +193,6 @@ export function AddProductModal({ onProductAdded, trigger }) {
 
     setLoading(true)
     setError("")
-    setSuccess("")
 
     try {
       console.log('📦 Creating product:', formData.name)
@@ -199,343 +203,338 @@ export function AddProductModal({ onProductAdded, trigger }) {
       })
 
       if (data) {
-        setSuccess(`Product "${data.product.name}" created successfully!`)
+        // Set success message and show success modal
+        setSuccessMessage(`Product "${data.product.name}" has been successfully added to your inventory!`)
+        setShowSuccessModal(true)
         
         // Notify parent component to refresh products list
         if (onProductAdded) {
           onProductAdded(data.product)
         }
 
-        // Close modal after 1.5 seconds
-        setTimeout(() => {
-          setOpen(false)
-        }, 1500)
+        // Close the main modal
+        setOpen(false)
       }
 
     } catch (error) {
       console.error('Create product error:', error)
-      setError(error.message || 'Failed to create product. Please try again.')
+      const errorMessage = error.message || 'Failed to create product. Please try again.'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
   }
 
+  const handleSuccessModalClose = () => {
+    setShowSuccessModal(false)
+    setSuccessMessage("")
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Product
-          </Button>
-        )}
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5 text-blue-600" />
-            Add New Product
-          </DialogTitle>
-          <DialogDescription>
-            Create a new product for your inventory. Fill in the details below.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      {/* Main Add Product Modal */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          {trigger || (
+            <Button className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Product
+            </Button>
+          )}
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-blue-600" />
+              Add New Product
+            </DialogTitle>
+            <DialogDescription>
+              Create a new product for your inventory. Fill in the details below.
+            </DialogDescription>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Basic Information */}
-          <div className="space-y-4">
-            <h4 className="font-medium text-sm text-gray-700">Basic Information</h4>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Product Name *</Label>
-                <Input
-                  id="name"
-                  placeholder="e.g. Chocolate Chip Cookie"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  required
-                />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Basic Information */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-sm text-gray-700">Basic Information</h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Product Name *</Label>
+                  <Input
+                    id="name"
+                    placeholder="e.g. Coca Cola 500ml"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="sku">SKU</Label>
+                  <Input
+                    id="sku"
+                    placeholder="Product SKU"
+                    value={formData.sku}
+                    onChange={(e) => handleInputChange('sku', e.target.value)}
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="sku">SKU (Optional)</Label>
-                <Input
-                  id="sku"
-                  placeholder="Auto-generated if empty"
-                  value={formData.sku}
-                  onChange={(e) => handleInputChange('sku', e.target.value)}
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Product description..."
+                  value={formData.description}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  rows={3}
                 />
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                placeholder="Describe your product..."
-                value={formData.description}
-                onChange={(e) => handleInputChange('description', e.target.value)}
-                rows={3}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="category">Category (Optional)</Label>
-                <Select 
-                  value={formData.category_id} 
-                  onValueChange={(value) => handleInputChange('category_id', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        <div className="flex items-center gap-2">
-                          {category.color && (
-                            <div 
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: category.color }}
-                            />
-                          )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="category_id">Category</Label>
+                  <Select onValueChange={(value) => handleInputChange('category_id', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
                           {category.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="store">Store *</Label>
-                <Select 
-                  value={formData.store_id} 
-                  onValueChange={(value) => handleInputChange('store_id', value)}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select store" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stores.map((store) => (
-                      <SelectItem key={store.id} value={store.id}>
-                        {store.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-
-          {/* Pricing */}
-          <div className="space-y-4">
-            <h4 className="font-medium text-sm text-gray-700">Pricing</h4>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="default_price">Default Price *</Label>
-                <Input
-                  id="default_price"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={formData.default_price}
-                  onChange={(e) => handleInputChange('default_price', e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="manila_price">Manila Price</Label>
-                <Input
-                  id="manila_price"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={formData.manila_price}
-                  onChange={(e) => handleInputChange('manila_price', e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="delivery_price">Delivery Price</Label>
-                <Input
-                  id="delivery_price"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={formData.delivery_price}
-                  onChange={(e) => handleInputChange('delivery_price', e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="wholesale_price">Wholesale Price</Label>
-                <Input
-                  id="wholesale_price"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={formData.wholesale_price}
-                  onChange={(e) => handleInputChange('wholesale_price', e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Stock Management */}
-          <div className="space-y-4">
-            <h4 className="font-medium text-sm text-gray-700">Stock Management</h4>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="stock_quantity">Current Stock</Label>
-                <Input
-                  id="stock_quantity"
-                  type="number"
-                  placeholder="0"
-                  value={formData.stock_quantity}
-                  onChange={(e) => handleInputChange('stock_quantity', e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="min_stock_level">Min Stock Level</Label>
-                <Input
-                  id="min_stock_level"
-                  type="number"
-                  placeholder="5"
-                  value={formData.min_stock_level}
-                  onChange={(e) => handleInputChange('min_stock_level', e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="max_stock_level">Max Stock Level</Label>
-                <Input
-                  id="max_stock_level"
-                  type="number"
-                  placeholder="100"
-                  value={formData.max_stock_level}
-                  onChange={(e) => handleInputChange('max_stock_level', e.target.value)}
-                />
+                <div className="space-y-2">
+                  <Label htmlFor="store_id">Store *</Label>
+                  <Select onValueChange={(value) => handleInputChange('store_id', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select store" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stores.map((store) => (
+                        <SelectItem key={store.id} value={store.id}>
+                          {store.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="unit">Unit</Label>
-                <Select 
-                  value={formData.unit} 
-                  onValueChange={(value) => handleInputChange('unit', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pcs">Pieces</SelectItem>
-                    <SelectItem value="kg">Kilograms</SelectItem>
-                    <SelectItem value="lbs">Pounds</SelectItem>
-                    <SelectItem value="box">Box</SelectItem>
-                    <SelectItem value="pack">Pack</SelectItem>
-                    <SelectItem value="bottle">Bottle</SelectItem>
-                  </SelectContent>
-                </Select>
+            {/* Pricing Information */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-sm text-gray-700">Pricing</h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="default_price">Default Price *</Label>
+                  <Input
+                    id="default_price"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={formData.default_price}
+                    onChange={(e) => handleInputChange('default_price', e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="manila_price">Manila Price</Label>
+                  <Input
+                    id="manila_price"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={formData.manila_price}
+                    onChange={(e) => handleInputChange('manila_price', e.target.value)}
+                  />
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="weight">Weight (optional)</Label>
-                <Input
-                  id="weight"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={formData.weight}
-                  onChange={(e) => handleInputChange('weight', e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="delivery_price">Delivery Price</Label>
+                  <Input
+                    id="delivery_price"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={formData.delivery_price}
+                    onChange={(e) => handleInputChange('delivery_price', e.target.value)}
+                  />
+                </div>
 
-          {/* Additional Information */}
-          <div className="space-y-4">
-            <h4 className="font-medium text-sm text-gray-700">Additional Information</h4>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="barcode">Barcode</Label>
-                <Input
-                  id="barcode"
-                  placeholder="Product barcode"
-                  value={formData.barcode}
-                  onChange={(e) => handleInputChange('barcode', e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="image_url">Image URL</Label>
-                <Input
-                  id="image_url"
-                  type="url"
-                  placeholder="https://example.com/image.jpg"
-                  value={formData.image_url}
-                  onChange={(e) => handleInputChange('image_url', e.target.value)}
-                />
+                <div className="space-y-2">
+                  <Label htmlFor="wholesale_price">Wholesale Price</Label>
+                  <Input
+                    id="wholesale_price"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={formData.wholesale_price}
+                    onChange={(e) => handleInputChange('wholesale_price', e.target.value)}
+                  />
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Error/Success Messages */}
-          {error && (
-            <Alert className="bg-red-50 border-red-200">
-              <AlertCircle className="h-4 w-4 text-red-600" />
-              <AlertDescription className="text-red-800">
-                {error}
-              </AlertDescription>
-            </Alert>
-          )}
+            {/* Stock Information */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-sm text-gray-700">Stock Management</h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="stock_quantity">Current Stock</Label>
+                  <Input
+                    id="stock_quantity"
+                    type="number"
+                    placeholder="0"
+                    value={formData.stock_quantity}
+                    onChange={(e) => handleInputChange('stock_quantity', e.target.value)}
+                  />
+                </div>
 
-          {success && (
-            <Alert className="bg-green-50 border-green-200">
-              <Package className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-800">
-                {success}
-              </AlertDescription>
-            </Alert>
-          )}
+                <div className="space-y-2">
+                  <Label htmlFor="min_stock_level">Min Stock Level</Label>
+                  <Input
+                    id="min_stock_level"
+                    type="number"
+                    placeholder="0"
+                    value={formData.min_stock_level}
+                    onChange={(e) => handleInputChange('min_stock_level', e.target.value)}
+                  />
+                </div>
 
-          <DialogFooter>
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => setOpen(false)}
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <Button 
-              type="submit" 
-              disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Product
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+                <div className="space-y-2">
+                  <Label htmlFor="max_stock_level">Max Stock Level</Label>
+                  <Input
+                    id="max_stock_level"
+                    type="number"
+                    placeholder="0"
+                    value={formData.max_stock_level}
+                    onChange={(e) => handleInputChange('max_stock_level', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="unit">Unit</Label>
+                  <Select onValueChange={(value) => handleInputChange('unit', value)} defaultValue="pcs">
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pcs">Pieces</SelectItem>
+                      <SelectItem value="kg">Kilogram</SelectItem>
+                      <SelectItem value="g">Gram</SelectItem>
+                      <SelectItem value="L">Liter</SelectItem>
+                      <SelectItem value="ml">Milliliter</SelectItem>
+                      <SelectItem value="box">Box</SelectItem>
+                      <SelectItem value="pack">Pack</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="weight">Weight</Label>
+                  <Input
+                    id="weight"
+                    placeholder="Product weight"
+                    value={formData.weight}
+                    onChange={(e) => handleInputChange('weight', e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Information */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-sm text-gray-700">Additional Information</h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="barcode">Barcode</Label>
+                  <Input
+                    id="barcode"
+                    placeholder="Product barcode"
+                    value={formData.barcode}
+                    onChange={(e) => handleInputChange('barcode', e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-4">
+  <h4 className="font-medium text-sm text-gray-700">Product Image</h4>
+  
+  <div className="space-y-2">
+    <Label htmlFor="product-image">Product Image</Label>
+    <ImageUpload
+      value={formData.image_url}
+      onChange={(url) => handleInputChange('image_url', url)}
+      disabled={loading}
+      maxSize={5 * 1024 * 1024} // 5MB
+    />
+  </div>
+</div>
+              </div>
+            </div>
+
+            {/* Error Messages */}
+            {error && (
+              <Alert className="bg-red-50 border-red-200">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <AlertDescription className="text-red-800">
+                  {error}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <DialogFooter>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setOpen(false)}
+                disabled={loading}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={loading}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Product
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Success Modal */}
+      <SuccessModal
+        open={showSuccessModal}
+        onOpenChange={handleSuccessModalClose}
+        title="Product Added Successfully!"
+        description={successMessage || "Your product has been added to the inventory."}
+        buttonText="OK"
+      />
+    </>
   )
 }
