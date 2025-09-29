@@ -45,6 +45,7 @@ import {
   DollarSign,
   BarChart3
 } from "lucide-react"
+import { ImageUpload } from "@/components/ui/image-upload"
 import API_CONFIG from "@/config/api"
 
 // 1. VIEW PRODUCT DETAILS MODAL
@@ -695,31 +696,33 @@ export function EditProductModal({ product, open, onOpenChange, onProductUpdated
             </div>
           </div>
 
+          {/* Product Image - Replace old URL input */}
+          <div className="space-y-4">
+            <h4 className="font-medium text-sm text-gray-700">Product Image</h4>
+            
+            <div className="space-y-2">
+              <Label htmlFor="product-image">Product Image</Label>
+              <ImageUpload
+                value={formData.image_url}
+                onChange={(url) => handleInputChange('image_url', url)}
+                disabled={loading}
+                maxSize={5 * 1024 * 1024} // 5MB
+              />
+            </div>
+          </div>
+
           {/* Additional Information */}
           <div className="space-y-4">
             <h4 className="font-medium text-sm text-gray-700">Additional Information</h4>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="barcode">Barcode</Label>
-                <Input
-                  id="barcode"
-                  placeholder="Product barcode"
-                  value={formData.barcode}
-                  onChange={(e) => handleInputChange('barcode', e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="image_url">Image URL</Label>
-                <Input
-                  id="image_url"
-                  type="url"
-                  placeholder="https://example.com/image.jpg"
-                  value={formData.image_url}
-                  onChange={(e) => handleInputChange('image_url', e.target.value)}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="barcode">Barcode</Label>
+              <Input
+                id="barcode"
+                placeholder="Product barcode"
+                value={formData.barcode}
+                onChange={(e) => handleInputChange('barcode', e.target.value)}
+              />
             </div>
           </div>
 
