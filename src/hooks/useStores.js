@@ -1,4 +1,4 @@
-// src/hooks/useStores.js - Simple store management hook
+// src/hooks/useStores.js - Fixed endpoint URL
 import { useState, useEffect } from 'react'
 import API_CONFIG from '@/config/api'
 
@@ -22,13 +22,14 @@ export function useStores() {
     }
   }, [stores])
 
-  // Fetch stores from API
+  // Fetch stores from API - FIXED ENDPOINT
   const fetchStores = async () => {
     try {
       setLoading(true)
       const token = localStorage.getItem('authToken')
       
-      const response = await fetch(`${API_CONFIG.BASE_URL}/client/dashboard/stores`, {
+      // FIXED: Correct endpoint WITHOUT /api prefix
+      const response = await fetch(`${API_CONFIG.BASE_URL}/client/stores`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -43,11 +44,42 @@ export function useStores() {
         if (!selectedStore && data.stores?.length > 0 && viewMode === 'single') {
           selectStore(data.stores[0])
         }
+      } else {
+        console.error('Failed to fetch stores:', response.status, response.statusText)
       }
     } catch (error) {
       console.error('Failed to fetch stores:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Request a new store
+  const requestStore = async (storeData) => {
+    try {
+      const token = localStorage.getItem('authToken')
+      
+      const response = await fetch(`${API_CONFIG.BASE_URL}/client/stores/request`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(storeData)
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        // Refresh stores list after successful request
+        fetchStores()
+        return { success: true, data }
+      } else {
+        const errorData = await response.json()
+        return { success: false, error: errorData.error }
+      }
+    } catch (error) {
+      console.error('Failed to request store:', error)
+      return { success: false, error: 'Network error occurred' }
     }
   }
 
@@ -87,6 +119,7 @@ export function useStores() {
     loading,
     isAllStoresView: viewMode === 'all',
     fetchStores,
+    requestStore,
     selectStore,
     toggleViewMode,
     getApiUrl

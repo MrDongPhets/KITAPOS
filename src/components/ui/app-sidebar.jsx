@@ -18,7 +18,8 @@ import {
   Layers,
   Tag,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Store
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -51,6 +52,11 @@ const superAdminNavigation = [
     icon: Building2,
   },
   {
+    name: "Store Requests",
+    href: "/admin/store-requests",
+    icon: Store, // Import Store from lucide-react
+  },
+  {
     name: "Users",
     href: "/admin/users",
     icon: Users,
@@ -78,6 +84,11 @@ const clientNavigation = [
     name: "Dashboard",
     href: "/client/dashboard",
     icon: Activity,
+  },
+  {
+    name: "Stores",
+    href: "/client/stores",
+    icon: Store, // Import Store from lucide-react
   },
   {
     name: "Sales",
