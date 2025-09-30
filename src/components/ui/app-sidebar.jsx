@@ -111,7 +111,7 @@ const clientNavigation = [
       },
       {
         name: "Stock Movement",
-        href: "/client/inventory/movements",
+        href: "/client/inventory/tracking",
         icon: Layers,
       }
     ]
