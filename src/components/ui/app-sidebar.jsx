@@ -91,6 +91,12 @@ const clientNavigation = [
     icon: Store, // Import Store from lucide-react
   },
   {
+    name: "POS",
+    href: "/client/pos",
+    icon: ShoppingCart,
+    target: "_blank",
+  },
+  {
     name: "Sales",
     href: "/client/sales",
     icon: ShoppingCart,
@@ -229,7 +235,7 @@ export function AppSidebar({ userType = "client", user = null, company = null })
                 return (
                   <SidebarMenuItem key={item.name}>
                     <SidebarMenuButton asChild isActive={isActive}>
-                      <Link href={item.href}>
+                      <Link href={item.href} target={item.target}>
                         <item.icon />
                         <span>{item.name}</span>
                       </Link>
