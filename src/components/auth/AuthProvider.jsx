@@ -1,4 +1,4 @@
-// src/components/auth/AuthProvider.jsx - Updated with API_CONFIG
+// src/components/auth/AuthProvider.jsx - Updated with Staff support
 "use client"
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
@@ -45,7 +45,15 @@ export function AuthProvider({ children }) {
     if (!token) return false
 
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.VERIFY}`, {
+      const userTypeData = localStorage.getItem('userType')
+      
+      // Different verification endpoints for different user types
+      let endpoint = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.VERIFY}`
+      if (userTypeData === 'staff') {
+        endpoint = `${API_CONFIG.BASE_URL}/staff/auth/verify`
+      }
+
+      const response = await fetch(endpoint, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -82,8 +90,9 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('userType')
     localStorage.removeItem('companyData')
     localStorage.removeItem('subscriptionData')
+    localStorage.removeItem('staffData')
     
-    // Show notification (you can customize this)
+    // Show notification
     if (typeof window !== 'undefined') {
       alert('Your session has expired. Please log in again.')
     }
@@ -92,6 +101,8 @@ export function AuthProvider({ children }) {
     const currentPath = window.location.pathname
     if (currentPath.startsWith('/admin')) {
       window.location.href = '/system-admin'
+    } else if (currentPath.startsWith('/pos')) {
+      window.location.href = '/staff/login'
     } else {
       window.location.href = '/login'
     }
@@ -103,35 +114,59 @@ export function AuthProvider({ children }) {
       
       const token = localStorage.getItem('authToken')
       const userData = localStorage.getItem('userData')
+      const staffData = localStorage.getItem('staffData')
       const userTypeData = localStorage.getItem('userType')
       
       console.log('Token exists:', !!token)
-      console.log('User data exists:', !!userData)
       console.log('User type:', userTypeData)
       console.log('Current pathname:', pathname)
       
-      if (token && userData && userTypeData) {
-        const parsedUser = JSON.parse(userData)
-        
-        // Validate the token with the server
-        console.log('🔍 Validating token with server...')
-        const isValid = await validateToken()
-        
-        if (isValid) {
-          setUser(parsedUser)
-          setUserType(userTypeData)
-          setIsAuthenticated(true)
-          console.log('✅ Auth restored:', parsedUser.email, userTypeData)
-        } else {
-          console.log('❌ Token validation failed, clearing session')
-          localStorage.removeItem('authToken')
-          localStorage.removeItem('userData')
-          localStorage.removeItem('userType')
-          localStorage.removeItem('companyData')
-          localStorage.removeItem('subscriptionData')
-          setUser(null)
-          setUserType(null)
-          setIsAuthenticated(false)
+      if (token && userTypeData) {
+        // Handle staff authentication
+        if (userTypeData === 'staff' && staffData) {
+          const parsedStaff = JSON.parse(staffData)
+          
+          console.log('🔍 Validating staff token...')
+          const isValid = await validateToken()
+          
+          if (isValid) {
+            setUser(parsedStaff)
+            setUserType('staff')
+            setIsAuthenticated(true)
+            console.log('✅ Staff auth restored:', parsedStaff.staff_id)
+          } else {
+            console.log('❌ Staff token validation failed')
+            localStorage.removeItem('authToken')
+            localStorage.removeItem('staffData')
+            localStorage.removeItem('userType')
+            setUser(null)
+            setUserType(null)
+            setIsAuthenticated(false)
+          }
+        } 
+        // Handle client/admin authentication
+        else if (userData) {
+          const parsedUser = JSON.parse(userData)
+          
+          console.log('🔍 Validating token with server...')
+          const isValid = await validateToken()
+          
+          if (isValid) {
+            setUser(parsedUser)
+            setUserType(userTypeData)
+            setIsAuthenticated(true)
+            console.log('✅ Auth restored:', parsedUser.email, userTypeData)
+          } else {
+            console.log('❌ Token validation failed, clearing session')
+            localStorage.removeItem('authToken')
+            localStorage.removeItem('userData')
+            localStorage.removeItem('userType')
+            localStorage.removeItem('companyData')
+            localStorage.removeItem('subscriptionData')
+            setUser(null)
+            setUserType(null)
+            setIsAuthenticated(false)
+          }
         }
       } else {
         console.log('❌ No valid auth data found')
@@ -156,41 +191,45 @@ export function AuthProvider({ children }) {
       pathname,
       isAuthenticated,
       userType,
-      user: user?.email
+      user: user?.email || user?.name
     })
 
     // Define route types
     const publicRoutes = ['/', '/register']
-    const loginRoutes = ['/login', '/system-admin']
+    const loginRoutes = ['/login', '/system-admin', '/staff/login']
     const adminRoutes = ['/admin']
     const clientRoutes = ['/client']
+    const posRoutes = ['/pos']
 
     const isPublicRoute = publicRoutes.includes(pathname)
     const isLoginRoute = loginRoutes.includes(pathname)
     const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route))
     const isClientRoute = clientRoutes.some(route => pathname.startsWith(route))
+    const isPOSRoute = posRoutes.some(route => pathname.startsWith(route))
 
-    console.log('Route analysis:', { isPublicRoute, isLoginRoute, isAdminRoute, isClientRoute })
+    console.log('Route analysis:', { isPublicRoute, isLoginRoute, isAdminRoute, isClientRoute, isPOSRoute })
 
     // PREVENT ALREADY AUTHENTICATED USERS FROM ACCESSING LOGIN PAGES
     if (isAuthenticated && isLoginRoute) {
-      console.log('🔒 Already authenticated user trying to access login page - redirecting to dashboard')
+      console.log('🔒 Already authenticated user trying to access login page')
       
       if (userType === 'super_admin') {
-        console.log('📄 Super admin already logged in, redirecting to admin dashboard')
         window.location.href = '/admin/dashboard'
       } else if (userType === 'client') {
-        console.log('📄 Client already logged in, redirecting to client dashboard')
         window.location.href = '/client/dashboard'
+      } else if (userType === 'staff') {
+        window.location.href = '/pos'
       }
       return
     }
 
     // If not authenticated and trying to access protected routes
-    if (!isAuthenticated && (isAdminRoute || isClientRoute)) {
+    if (!isAuthenticated && (isAdminRoute || isClientRoute || isPOSRoute)) {
       console.log('❌ Not authenticated, redirecting to appropriate login')
       if (isAdminRoute) {
         window.location.href = '/system-admin'
+      } else if (isPOSRoute) {
+        window.location.href = '/staff/login'
       } else {
         window.location.href = '/login'
       }
@@ -201,16 +240,23 @@ export function AuthProvider({ children }) {
     if (isAuthenticated && userType) {
       console.log('✅ Authenticated user, checking route permissions')
 
-      // Super admin trying to access client routes
-      if (userType === 'super_admin' && isClientRoute) {
-        console.log('📄 Super admin accessing client route, redirecting to admin dashboard')
+      // Staff can only access POS
+      if (userType === 'staff' && !isPOSRoute && !isPublicRoute) {
+        console.log('📄 Staff accessing non-POS route, redirecting to POS')
+        window.location.href = '/pos'
+        return
+      }
+
+      // Super admin trying to access client/POS routes
+      if (userType === 'super_admin' && (isClientRoute || isPOSRoute)) {
+        console.log('📄 Super admin redirecting to admin dashboard')
         window.location.href = '/admin/dashboard'
         return
       }
 
-      // Client trying to access admin routes
-      if (userType === 'client' && isAdminRoute) {
-        console.log('📄 Client accessing admin route, redirecting to client dashboard')
+      // Client trying to access admin/POS routes
+      if (userType === 'client' && (isAdminRoute || isPOSRoute)) {
+        console.log('📄 Client redirecting to client dashboard')
         window.location.href = '/client/dashboard'
         return
       }
@@ -222,6 +268,8 @@ export function AuthProvider({ children }) {
           window.location.href = '/admin/dashboard'
         } else if (userType === 'client') {
           window.location.href = '/client/dashboard'
+        } else if (userType === 'staff') {
+          window.location.href = '/pos'
         }
         return
       }
@@ -231,7 +279,7 @@ export function AuthProvider({ children }) {
   }, [isAuthenticated, userType, pathname, user])
 
   const login = useCallback(async (credentials, loginType = 'client') => {
-    console.log('🔑 Login attempt:', credentials.email, loginType)
+    console.log('🔑 Login attempt:', credentials.email || credentials.staff_id, loginType)
     
     // PREVENT LOGIN IF ALREADY AUTHENTICATED
     if (isAuthenticated) {
@@ -267,6 +315,7 @@ export function AuthProvider({ children }) {
         localStorage.removeItem('userType')
         localStorage.removeItem('companyData')
         localStorage.removeItem('subscriptionData')
+        localStorage.removeItem('staffData')
 
         // Determine the correct user type
         const finalUserType = data.userType || loginType
@@ -295,10 +344,8 @@ export function AuthProvider({ children }) {
         // Immediate redirect based on user type
         setTimeout(() => {
           if (finalUserType === 'super_admin') {
-            console.log('📄 Redirecting super admin to admin dashboard')
             window.location.href = '/admin/dashboard'
           } else {
-            console.log('📄 Redirecting client to client dashboard')
             window.location.href = '/client/dashboard'
           }
         }, 100)
@@ -321,10 +368,15 @@ export function AuthProvider({ children }) {
     
     try {
       const token = localStorage.getItem('authToken')
+      const currentUserType = localStorage.getItem('userType')
       
       if (token) {
         try {
-          await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.LOGOUT}`, {
+          const endpoint = currentUserType === 'staff'
+            ? `${API_CONFIG.BASE_URL}/staff/auth/logout`
+            : `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.LOGOUT}`
+            
+          await fetch(endpoint, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -342,21 +394,28 @@ export function AuthProvider({ children }) {
       localStorage.removeItem('userType')
       localStorage.removeItem('companyData')
       localStorage.removeItem('subscriptionData')
+      localStorage.removeItem('staffData')
       
       setUser(null)
       setUserType(null)
       setIsAuthenticated(false)
       
-      // Use window.location for clean redirect
-      window.location.href = '/login'
+      // Redirect based on previous user type
+      if (currentUserType === 'staff') {
+        window.location.href = '/staff/login'
+      } else if (currentUserType === 'super_admin') {
+        window.location.href = '/system-admin'
+      } else {
+        window.location.href = '/login'
+      }
     } catch (error) {
       console.error('Logout error:', error)
-      // Force clear and redirect even on error
       localStorage.removeItem('authToken')
       localStorage.removeItem('userData')
       localStorage.removeItem('userType')
       localStorage.removeItem('companyData')
       localStorage.removeItem('subscriptionData')
+      localStorage.removeItem('staffData')
       
       setUser(null)
       setUserType(null)
@@ -365,7 +424,6 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  // Add method to force logout (for switching accounts)
   const forceLogout = useCallback(async () => {
     console.log('📄 Force logout for account switching...')
     
@@ -391,6 +449,7 @@ export function AuthProvider({ children }) {
       localStorage.removeItem('userType')
       localStorage.removeItem('companyData')
       localStorage.removeItem('subscriptionData')
+      localStorage.removeItem('staffData')
       
       setUser(null)
       setUserType(null)
@@ -398,12 +457,12 @@ export function AuthProvider({ children }) {
       setInitialized(false)
     } catch (error) {
       console.error('Force logout error:', error)
-      // Clear state even on error
       localStorage.removeItem('authToken')
       localStorage.removeItem('userData')
       localStorage.removeItem('userType')
       localStorage.removeItem('companyData')
       localStorage.removeItem('subscriptionData')
+      localStorage.removeItem('staffData')
       
       setUser(null)
       setUserType(null)
@@ -423,6 +482,7 @@ export function AuthProvider({ children }) {
     forceLogout,
     isClient: userType === 'client',
     isSuperAdmin: userType === 'super_admin',
+    isStaff: userType === 'staff',
   }
 
   // Don't render children until initialized
