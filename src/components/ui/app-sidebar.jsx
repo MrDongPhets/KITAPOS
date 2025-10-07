@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -14,7 +13,6 @@ import {
   Package, 
   BarChart3,
   LogOut,
-  User,
   Layers,
   Tag,
   ChevronDown,
@@ -35,9 +33,16 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 // Super Admin navigation items
 const superAdminNavigation = [
@@ -54,7 +59,7 @@ const superAdminNavigation = [
   {
     name: "Store Requests",
     href: "/admin/store-requests",
-    icon: Store, // Import Store from lucide-react
+    icon: Store,
   },
   {
     name: "Users",
@@ -88,7 +93,7 @@ const clientNavigation = [
   {
     name: "Stores",
     href: "/client/stores",
-    icon: Store, // Import Store from lucide-react
+    icon: Store,
   },
   {
     name: "POS",
@@ -141,6 +146,7 @@ const clientNavigation = [
 
 export function AppSidebar({ userType = "client", user = null, company = null }) {
   const pathname = usePathname()
+  const { state } = useSidebar()
   const [inventoryExpanded, setInventoryExpanded] = useState(pathname.startsWith('/client/inventory'))
   
   // Determine which navigation to use
@@ -149,7 +155,7 @@ export function AppSidebar({ userType = "client", user = null, company = null })
   // Determine branding
   const isAdmin = userType === "super_admin"
   const brandName = isAdmin ? "Admin Portal" : (company?.name || "Business")
-  const BrandIcon = isAdmin ? Crown : Building2  // Use PascalCase for component
+  const BrandIcon = isAdmin ? Crown : Building2
 
   const handleLogout = () => {
     localStorage.removeItem('authToken')
@@ -167,16 +173,29 @@ export function AppSidebar({ userType = "client", user = null, company = null })
     return isAdmin ? 'SA' : 'U'
   }
 
+  const isCollapsed = state === "collapsed"
+
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       {/* Sidebar Header */}
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2">
-          <div className={`w-8 h-8 ${isAdmin ? 'bg-purple-600' : 'bg-blue-600'} rounded-lg flex items-center justify-center`}>
-            <BrandIcon className="h-5 w-5 text-white" />
-          </div>
-          <span className="font-semibold text-lg truncate">{brandName}</span>
-        </div>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild>
+              <Link href={isAdmin ? "/admin/dashboard" : "/client/dashboard"}>
+                <div className={`flex aspect-square size-8 items-center justify-center rounded-lg ${isAdmin ? 'bg-purple-600' : 'bg-blue-600'} text-white`}>
+                  <BrandIcon className="size-4" />
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">{brandName}</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {isAdmin ? 'Administration' : 'Business Portal'}
+                  </span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
       {/* Sidebar Content */}
@@ -190,6 +209,36 @@ export function AppSidebar({ userType = "client", user = null, company = null })
                 if (item.subItems) {
                   const isInventoryActive = pathname.startsWith('/client/inventory')
                   
+                  // When collapsed, show inventory as dropdown
+                  if (isCollapsed) {
+                    return (
+                      <SidebarMenuItem key={item.name}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <SidebarMenuButton 
+                              isActive={isInventoryActive}
+                              tooltip={item.name}
+                            >
+                              <item.icon />
+                              <span>{item.name}</span>
+                            </SidebarMenuButton>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent side="right" align="start" className="w-48">
+                            {item.subItems.map((subItem) => (
+                              <DropdownMenuItem key={subItem.name} asChild>
+                                <Link href={subItem.href} className="cursor-pointer">
+                                  <subItem.icon className="mr-2 h-4 w-4" />
+                                  {subItem.name}
+                                </Link>
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </SidebarMenuItem>
+                    )
+                  }
+                  
+                  // When expanded, show as collapsible list
                   return (
                     <div key={item.name}>
                       <SidebarMenuItem>
@@ -230,11 +279,15 @@ export function AppSidebar({ userType = "client", user = null, company = null })
                   )
                 }
                 
-                // Regular menu items
+                // Regular menu items with tooltip support when collapsed
                 const isActive = pathname === item.href
                 return (
                   <SidebarMenuItem key={item.name}>
-                    <SidebarMenuButton asChild isActive={isActive}>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={isActive}
+                      tooltip={item.name}
+                    >
                       <Link href={item.href} target={item.target}>
                         <item.icon />
                         <span>{item.name}</span>
@@ -250,31 +303,40 @@ export function AppSidebar({ userType = "client", user = null, company = null })
 
       {/* Sidebar Footer */}
       <SidebarFooter>
-        <div className="flex items-center gap-3 px-2 py-2">
-          <Avatar className="w-8 h-8">
-            <AvatarFallback className="bg-gray-200 text-gray-600 text-sm">
-              {getUserInitials()}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">
-              {user?.name || (isAdmin ? 'Super Admin' : 'User')}
-            </p>
-            <p className="text-xs text-muted-foreground truncate">
-              {user?.email || 'user@example.com'}
-            </p>
-          </div>
-        </div>
-        
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 px-2"
-          onClick={handleLogout}
-        >
-          <LogOut className="h-4 w-4" />
-          Logout
-        </Button>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton size="lg">
+                  <Avatar className="h-8 w-8 rounded-lg">
+                    <AvatarFallback className="rounded-lg bg-gray-200 text-gray-600 text-sm">
+                      {getUserInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">
+                      {user?.name || (isAdmin ? 'Super Admin' : 'User')}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {user?.email || 'user@example.com'}
+                    </span>
+                  </div>
+                  <ChevronDown className="ml-auto size-4" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                className="w-56"
+                align="end"
+                side="top"
+              >
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   )
