@@ -1,3 +1,4 @@
+// src/components/ui/app-sidebar.jsx - Updated with Reports Dropdown
 "use client"
 
 import { useState } from "react"
@@ -17,7 +18,10 @@ import {
   Tag,
   ChevronDown,
   ChevronRight,
-  Store
+  Store,
+  TrendingUp,
+  DollarSign,
+  PackageSearch
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -83,7 +87,7 @@ const superAdminNavigation = [
   },
 ]
 
-// Client navigation items with Inventory submenu
+// Client navigation items with Inventory and Reports submenus
 const clientNavigation = [
   {
     name: "Dashboard",
@@ -102,7 +106,7 @@ const clientNavigation = [
     target: "_blank",
   },
   {
-    name: "Sales",
+    name: "Sales Transactions",
     href: "/client/sales",
     icon: ShoppingCart,
   },
@@ -134,8 +138,29 @@ const clientNavigation = [
   },
   {
     name: "Reports",
-    href: "/client/reports",
     icon: BarChart3,
+    subItems: [
+      {
+        name: "Reports & Analytics",
+        href: "/client/reports",
+        icon: TrendingUp,
+      },
+      {
+        name: "Sales Reports",
+        href: "/client/reports/sales",
+        icon: TrendingUp,
+      },
+      {
+        name: "Inventory Reports",
+        href: "/client/reports/inventory",
+        icon: PackageSearch,
+      },
+      {
+        name: "Financial Reports",
+        href: "/client/reports/financial",
+        icon: DollarSign,
+      }
+    ]
   },
   {
     name: "Settings",
@@ -148,6 +173,7 @@ export function AppSidebar({ userType = "client", user = null, company = null })
   const pathname = usePathname()
   const { state } = useSidebar()
   const [inventoryExpanded, setInventoryExpanded] = useState(pathname.startsWith('/client/inventory'))
+  const [reportsExpanded, setReportsExpanded] = useState(pathname.startsWith('/client/reports'))
   
   // Determine which navigation to use
   const navigation = userType === "super_admin" ? superAdminNavigation : clientNavigation
@@ -158,6 +184,7 @@ export function AppSidebar({ userType = "client", user = null, company = null })
   const BrandIcon = isAdmin ? Crown : Building2
 
   const handleLogout = () => {
+    localStorage.removeItem('token')
     localStorage.removeItem('authToken')
     localStorage.removeItem('userData')
     localStorage.removeItem('userType')
@@ -205,18 +232,22 @@ export function AppSidebar({ userType = "client", user = null, company = null })
           <SidebarGroupContent>
             <SidebarMenu>
               {navigation.map((item) => {
-                // Handle items with submenus (like Inventory)
+                // Handle items with submenus (Inventory and Reports)
                 if (item.subItems) {
-                  const isInventoryActive = pathname.startsWith('/client/inventory')
+                  const isActive = pathname.startsWith(item.subItems[0].href.split('/').slice(0, 3).join('/'))
+                  const isInventory = item.name === "Inventory"
+                  const isReports = item.name === "Reports"
+                  const isExpanded = isInventory ? inventoryExpanded : reportsExpanded
+                  const setExpanded = isInventory ? setInventoryExpanded : setReportsExpanded
                   
-                  // When collapsed, show inventory as dropdown
+                  // When collapsed, show as dropdown
                   if (isCollapsed) {
                     return (
                       <SidebarMenuItem key={item.name}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <SidebarMenuButton 
-                              isActive={isInventoryActive}
+                              isActive={isActive}
                               tooltip={item.name}
                             >
                               <item.icon />
@@ -243,13 +274,13 @@ export function AppSidebar({ userType = "client", user = null, company = null })
                     <div key={item.name}>
                       <SidebarMenuItem>
                         <SidebarMenuButton 
-                          onClick={() => setInventoryExpanded(!inventoryExpanded)}
-                          isActive={isInventoryActive}
+                          onClick={() => setExpanded(!isExpanded)}
+                          isActive={isActive}
                           className="cursor-pointer"
                         >
                           <item.icon />
                           <span>{item.name}</span>
-                          {inventoryExpanded ? (
+                          {isExpanded ? (
                             <ChevronDown className="ml-auto h-4 w-4" />
                           ) : (
                             <ChevronRight className="ml-auto h-4 w-4" />
@@ -257,8 +288,8 @@ export function AppSidebar({ userType = "client", user = null, company = null })
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                       
-                      {/* Sub-items for Inventory */}
-                      {inventoryExpanded && (
+                      {/* Sub-items */}
+                      {isExpanded && (
                         <div className="ml-6 mt-1 space-y-1">
                           {item.subItems.map((subItem) => {
                             const isSubItemActive = pathname === subItem.href
@@ -318,20 +349,27 @@ export function AppSidebar({ userType = "client", user = null, company = null })
                       {user?.name || (isAdmin ? 'Super Admin' : 'User')}
                     </span>
                     <span className="truncate text-xs text-muted-foreground">
-                      {user?.email || 'user@example.com'}
+                      {user?.email || 'No email'}
                     </span>
                   </div>
                   <ChevronDown className="ml-auto size-4" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className="w-56"
+                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+                side="bottom"
                 align="end"
-                side="top"
+                sideOffset={4}
               >
+                <DropdownMenuItem asChild>
+                  <Link href="/client/settings" className="cursor-pointer">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Logout</span>
+                  Logout
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
